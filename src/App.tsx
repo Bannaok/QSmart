@@ -1,0 +1,228 @@
+import React, { useState } from 'react';
+import { ToastProvider, useToast } from './services/toastContext';
+import { AuthProvider, useAuth } from './services/authContext';
+import { ToastContainer } from './components/ToastContainer';
+import { Navbar } from './components/Navbar';
+import { MinimalHomeView } from './components/MinimalHomeView';
+import { ExamList } from './components/ExamList';
+import { AppSettingsModal } from './components/AppSettingsModal';
+import { UserProfileModal } from './components/UserProfileModal';
+import { LoginModal } from './components/LoginModal';
+import { CreateExamModal } from './components/CreateExamModal';
+import { ScannerModal } from './components/ScannerModal';
+import { AnswerSheetView } from './components/AnswerSheetView';
+import { PendingApprovalView } from './components/PendingApprovalView';
+import { CenteredLoginForm } from './components/CenteredLoginForm';
+import { storageService } from './services/storageService';
+import { AppSettings, Exam } from './types';
+
+const MainAppContent: React.FC = () => {
+  const { isAuthenticated, isPending } = useAuth();
+  const { info, warning } = useToast();
+
+  // Tab: 'home' (2 minimal items: 1.ชุดข้อสอบ 2.สแกนคิวอาร์โค้ด) or 'exams'
+  const [currentTab, setCurrentTab] = useState<'home' | 'exams'>('home');
+  const [appSettings, setAppSettings] = useState<AppSettings>(() => storageService.getSettings());
+  const [exams, setExams] = useState<Exam[]>(() => storageService.getExams());
+
+  // Modals state
+  const [isLoginOpen, setIsLoginOpen] = useState(false);
+  const [isSettingsOpen, setIsSettingsOpen] = useState(false);
+  const [settingsTab, setSettingsTab] = useState<'general' | 'members'>('general');
+  const [isProfileOpen, setIsProfileOpen] = useState(false);
+  const [isCreateExamOpen, setIsCreateExamOpen] = useState(false);
+  const [editingExam, setEditingExam] = useState<Exam | null>(null);
+
+  // Active exam for scanning / printing
+  const [activeScanExam, setActiveScanExam] = useState<Exam | null>(null);
+  const [activePrintExam, setActivePrintExam] = useState<Exam | null>(null);
+
+  const refreshExams = () => {
+    setExams(storageService.getExams());
+  };
+
+  const handleOpenScan = (exam: Exam) => {
+    if (!isAuthenticated) {
+      info('กรุณาเข้าสู่ระบบก่อนเริ่มสแกนข้อสอบ');
+      setIsLoginOpen(true);
+      return;
+    }
+    if (isPending) {
+      info('บัญชีของคุณยังอยู่ระหว่างรออนุมัติสิทธิ์');
+      return;
+    }
+    setActiveScanExam(exam);
+  };
+
+  const handleQuickScanFromHome = () => {
+    if (exams.length === 0) {
+      warning('ยังไม่มีชุดข้อสอบในระบบ', 'กรุณาสร้างชุดข้อสอบและเฉลยก่อนเริ่มสแกน');
+      setIsCreateExamOpen(true);
+      return;
+    }
+    // Launch scanner with the first/most recent exam
+    setActiveScanExam(exams[0]);
+  };
+
+  const handleOpenPrint = (exam: Exam) => {
+    setActivePrintExam(exam);
+  };
+
+  const handleOpenEdit = (exam: Exam) => {
+    if (!isAuthenticated) {
+      setIsLoginOpen(true);
+      return;
+    }
+    setEditingExam(exam);
+    setIsCreateExamOpen(true);
+  };
+
+  const handleOpenCreateNew = () => {
+    if (!isAuthenticated) {
+      info('กรุณาเข้าสู่ระบบเพื่อสร้างชุดข้อสอบ');
+      setIsLoginOpen(true);
+      return;
+    }
+    if (isPending) {
+      info('บัญชีของคุณยังอยู่ระหว่างรออนุมัติสิทธิ์');
+      return;
+    }
+    setEditingExam(null);
+    setIsCreateExamOpen(true);
+  };
+
+  const handleOpenSettingsWithTab = (tab: 'general' | 'members' = 'general') => {
+    setSettingsTab(tab);
+    setIsSettingsOpen(true);
+  };
+
+  return (
+    <div className="min-h-screen flex flex-col bg-white text-slate-800">
+      <ToastContainer />
+
+      {/* Top Navbar with Home Button on the top left */}
+      <Navbar
+        currentTab={currentTab}
+        onSelectTab={setCurrentTab}
+        appSettings={appSettings}
+        onOpenSettings={() => handleOpenSettingsWithTab('general')}
+        onOpenProfile={() => setIsProfileOpen(true)}
+        onOpenMembers={() => handleOpenSettingsWithTab('members')}
+      />
+
+      {/* Main Container */}
+      <main className="flex-1 max-w-7xl w-full mx-auto px-4 sm:px-6 lg:px-8 py-6 flex flex-col">
+        {/* State 1: User Logged In but Pending Approval */}
+        {isAuthenticated && isPending && (
+          <PendingApprovalView onOpenLogin={() => setIsLoginOpen(true)} />
+        )}
+
+        {/* State 2: Directly Centered Login Form when not logged in */}
+        {!isAuthenticated && (
+          <CenteredLoginForm appSettings={appSettings} />
+        )}
+
+        {/* State 3: User Logged In and Approved */}
+        {isAuthenticated && !isPending && (
+          <div className="flex-1 flex flex-col">
+            {/* View 1: Clean Minimal Home with 2 Primary Items (1. ชุดข้อสอบ 2. สแกนคิวอาร์โค้ด) */}
+            {currentTab === 'home' && (
+              <MinimalHomeView
+                exams={exams}
+                onNavigateToExams={() => setCurrentTab('exams')}
+                onOpenQuickScan={handleQuickScanFromHome}
+              />
+            )}
+
+            {/* View 2: Exam List */}
+            {currentTab === 'exams' && (
+              <ExamList
+                exams={exams}
+                onOpenCreate={handleOpenCreateNew}
+                onEditExam={handleOpenEdit}
+                onScanExam={handleOpenScan}
+                onPrintExam={handleOpenPrint}
+                onExamsUpdated={refreshExams}
+                onGoHome={() => setCurrentTab('home')}
+              />
+            )}
+          </div>
+        )}
+      </main>
+
+      {/* Footer */}
+      <footer className="bg-white border-t border-slate-200 py-6 text-center text-xs text-slate-500 no-print">
+        <div className="max-w-7xl mx-auto px-4 flex flex-col sm:flex-row items-center justify-between gap-3">
+          <div className="flex items-center gap-2">
+            <span className="font-bold text-slate-700">{appSettings.appName}</span>
+            <span>•</span>
+            <span>{appSettings.organizationName}</span>
+          </div>
+          <div>
+            ระบบสร้างและสแกนกระดาษคำตอบปรนัย (Multiple-Choice Exam Scanner System)
+          </div>
+        </div>
+      </footer>
+
+      {/* Modal: Login (For account switching if needed) */}
+      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
+
+      {/* Modal: App Settings & Member Management */}
+      <AppSettingsModal
+        isOpen={isSettingsOpen}
+        initialTab={settingsTab}
+        onClose={() => setIsSettingsOpen(false)}
+        onSettingsSaved={(updated) => setAppSettings(updated)}
+      />
+
+      {/* Modal: User Profile */}
+      <UserProfileModal
+        isOpen={isProfileOpen}
+        onClose={() => setIsProfileOpen(false)}
+      />
+
+      {/* Modal: Create/Edit Exam */}
+      <CreateExamModal
+        isOpen={isCreateExamOpen}
+        onClose={() => {
+          setIsCreateExamOpen(false);
+          setEditingExam(null);
+        }}
+        editingExam={editingExam}
+        onExamCreated={() => {
+          refreshExams();
+        }}
+      />
+
+      {/* Modal: OMR / QR Scanner */}
+      {activeScanExam && (
+        <ScannerModal
+          isOpen={!!activeScanExam}
+          exam={activeScanExam}
+          onClose={() => setActiveScanExam(null)}
+          onScanSaved={() => {
+            refreshExams();
+          }}
+        />
+      )}
+
+      {/* Modal: Printable Answer Sheet */}
+      {activePrintExam && (
+        <AnswerSheetView
+          exam={activePrintExam}
+          onClose={() => setActivePrintExam(null)}
+        />
+      )}
+    </div>
+  );
+};
+
+export default function App() {
+  return (
+    <ToastProvider>
+      <AuthProvider>
+        <MainAppContent />
+      </AuthProvider>
+    </ToastProvider>
+  );
+}

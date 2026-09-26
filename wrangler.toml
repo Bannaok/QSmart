@@ -1,0 +1,17 @@
+name = "examscan-omr"
+compatibility_date = "2024-09-01"
+pages_build_output_dir = "dist"
+
+# ====================================================================
+# Cloudflare D1 Database Binding
+# ====================================================================
+[[d1_databases]]
+binding = "DB"
+database_name = "omr_d1"
+database_id = "REPLACE_WITH_YOUR_D1_DATABASE_ID"
+
+# ====================================================================
+# Cloudflare Pages / Workers Environment Variables
+# ====================================================================
+[vars]
+ENVIRONMENT = "production"
