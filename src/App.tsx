@@ -13,6 +13,7 @@ import { ScannerModal } from './components/ScannerModal';
 import { AnswerSheetView } from './components/AnswerSheetView';
 import { PendingApprovalView } from './components/PendingApprovalView';
 import { CenteredLoginForm } from './components/CenteredLoginForm';
+import { PWAInstallPrompt } from './components/PWAInstallPrompt';
 import { storageService } from './services/storageService';
 import { AppSettings, Exam } from './types';
 
@@ -47,20 +48,16 @@ const MainAppContent: React.FC = () => {
       setIsLoginOpen(true);
       return;
     }
-    if (isPending) {
-      info('บัญชีของคุณยังอยู่ระหว่างรออนุมัติสิทธิ์');
-      return;
-    }
     setActiveScanExam(exam);
   };
 
   const handleQuickScanFromHome = () => {
     if (exams.length === 0) {
       warning('ยังไม่มีชุดข้อสอบในระบบ', 'กรุณาสร้างชุดข้อสอบและเฉลยก่อนเริ่มสแกน');
-      setIsCreateExamOpen(true);
+      setCurrentTab('exams');
       return;
     }
-    // Launch scanner with the first/most recent exam
+    // Launch scan on the most recently modified or created exam
     setActiveScanExam(exams[0]);
   };
 
@@ -69,8 +66,8 @@ const MainAppContent: React.FC = () => {
   };
 
   const handleOpenEdit = (exam: Exam) => {
-    if (!isAuthenticated) {
-      setIsLoginOpen(true);
+    if (isPending) {
+      info('บัญชีของคุณยังอยู่ระหว่างรออนุมัติสิทธิ์');
       return;
     }
     setEditingExam(exam);
@@ -99,6 +96,9 @@ const MainAppContent: React.FC = () => {
   return (
     <div className="min-h-screen flex flex-col bg-white text-slate-800">
       <ToastContainer />
+
+      {/* PWA Mobile Install Banner */}
+      <PWAInstallPrompt />
 
       {/* Top Navbar with Home Button on the top left */}
       <Navbar
@@ -164,49 +164,45 @@ const MainAppContent: React.FC = () => {
         </div>
       </footer>
 
-      {/* Modal: Login (For account switching if needed) */}
-      <LoginModal isOpen={isLoginOpen} onClose={() => setIsLoginOpen(false)} />
-
-      {/* Modal: App Settings & Member Management */}
-      <AppSettingsModal
-        isOpen={isSettingsOpen}
-        initialTab={settingsTab}
-        onClose={() => setIsSettingsOpen(false)}
-        onSettingsSaved={(updated) => setAppSettings(updated)}
+      {/* Modals */}
+      <LoginModal
+        isOpen={isLoginOpen}
+        onClose={() => setIsLoginOpen(false)}
       />
 
-      {/* Modal: User Profile */}
+      <AppSettingsModal
+        isOpen={isSettingsOpen}
+        onClose={() => setIsSettingsOpen(false)}
+        onSettingsSaved={(updated: AppSettings) => setAppSettings(updated)}
+        initialTab={settingsTab}
+      />
+
       <UserProfileModal
         isOpen={isProfileOpen}
         onClose={() => setIsProfileOpen(false)}
       />
 
-      {/* Modal: Create/Edit Exam */}
-      <CreateExamModal
-        isOpen={isCreateExamOpen}
-        onClose={() => {
-          setIsCreateExamOpen(false);
-          setEditingExam(null);
-        }}
-        editingExam={editingExam}
-        onExamCreated={() => {
-          refreshExams();
-        }}
-      />
-
-      {/* Modal: OMR / QR Scanner */}
-      {activeScanExam && (
-        <ScannerModal
-          isOpen={!!activeScanExam}
-          exam={activeScanExam}
-          onClose={() => setActiveScanExam(null)}
-          onScanSaved={() => {
+      {isCreateExamOpen && (
+        <CreateExamModal
+          isOpen={isCreateExamOpen}
+          onClose={() => setIsCreateExamOpen(false)}
+          editingExam={editingExam}
+          onExamCreated={() => {
             refreshExams();
+            setIsCreateExamOpen(false);
           }}
         />
       )}
 
-      {/* Modal: Printable Answer Sheet */}
+      {activeScanExam && (
+        <ScannerModal
+          isOpen={!!activeScanExam}
+          onClose={() => setActiveScanExam(null)}
+          exam={activeScanExam}
+          onScanSaved={() => refreshExams()}
+        />
+      )}
+
       {activePrintExam && (
         <AnswerSheetView
           exam={activePrintExam}
@@ -217,7 +213,7 @@ const MainAppContent: React.FC = () => {
   );
 };
 
-export default function App() {
+export const App: React.FC = () => {
   return (
     <ToastProvider>
       <AuthProvider>
@@ -225,4 +221,6 @@ export default function App() {
       </AuthProvider>
     </ToastProvider>
   );
-}
+};
+
+export default App;
